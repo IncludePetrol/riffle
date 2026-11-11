@@ -14,8 +14,9 @@ picture and plays practically every video format, with no codec packs and no VLC
 ![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC--ND%204.0-lightgrey)](LICENSE)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/AndreaParo05)
 
-[**Download**](https://github.com/IncludePetrol/riffle/releases) · [Features](#-features) · [Shortcuts](#%EF%B8%8F-keyboard-shortcuts) · [Build](#-build-from-source) · [Italiano](#-in-italiano)
+[**Download**](https://github.com/IncludePetrol/riffle/releases) · [Features](#-features) · [Shortcuts](#%EF%B8%8F-keyboard-shortcuts) · [Build](#-build-from-source) · [Support](#-support-riffle) · [Italiano](#-in-italiano)
 
 <br>
 
@@ -175,6 +176,19 @@ Set the environment variable `RIFFLE_TRACE=1` to log per-photo timings to `%TEMP
 
 <br>
 
+## ❤️ Support Riffle
+
+Riffle is free and made in my spare time. If it saves you time, you can buy me a coffee. It is
+entirely optional and keeps the project going.
+
+<p align="center">
+  <a href="https://paypal.me/AndreaParo05"><img src="https://img.shields.io/badge/Donate%20with-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal"></a>
+</p>
+
+Starring the repository ⭐ and reporting bugs in [Issues](https://github.com/IncludePetrol/riffle/issues) help a lot too.
+
+<br>
+
 ## 🙌 Credits
 
 Riffle is designed and developed by **[Andrea Parolini](https://github.com/IncludePetrol)**.
@@ -213,6 +227,7 @@ luminosità, esposizione, contrasto, saturazione, calore e bianco e nero.
 
 - **Scarica:** dalla pagina [Releases](https://github.com/IncludePetrol/riffle/releases). Serve il [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 - **Lingua:** l'interfaccia è in italiano se Windows è in italiano. Si cambia da *⋯ → Impostazioni → Lingua*.
+- **Supporta il progetto:** se Riffle ti è utile puoi offrirmi un caffè su [PayPal](https://paypal.me/AndreaParo05). È del tutto facoltativo, ma aiuta a farlo crescere.
 - **Licenza:** CC BY-NC-ND 4.0. Puoi usarlo e condividerlo gratis per scopi non commerciali, citando l'autore. Sono vietati l'uso commerciale e la distribuzione di versioni modificate.
 
 <div align="center">

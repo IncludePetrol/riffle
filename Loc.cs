@@ -158,6 +158,7 @@ public static class Loc
         ["Licenza CC BY-NC-ND 4.0: uso libero non commerciale, citando l'autore; vietato distribuire versioni modificate."] =
             "Licensed under CC BY-NC-ND 4.0: free for non-commercial use with credit to the author; modified versions may not be distributed.",
         ["Componenti di terze parti"] = "Third-party components",
+        ["Supporta Riffle"] = "Support Riffle",
         ["Presentazione · {0} s · Esc per uscire"] = "Slideshow · {0} s · Esc to exit",
 
         // scorciatoie

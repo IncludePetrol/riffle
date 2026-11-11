@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Riffle"
-        Title="Riffle" Width="1280" Height="800" MinWidth="560" MinHeight="380"
+        Title="Riffle" Width="1280" Height="800" MinWidth="720" MinHeight="420"
         Background="Transparent" Foreground="{StaticResource Fg}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
         UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True"
@@ -166,7 +166,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="LeftBar" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image x:Name="AppIcon" Source="/assets/riffle-32.png" Width="16" Height="16" Margin="4,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <StackPanel x:Name="Commands" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button x:Name="EditBtn" Style="{StaticResource IconBtn}" Content="&#xE70F;" Click="Edit_Click" ToolTip="{local:T 'Modifica: ritaglia, ruota, regola (E)'}"/>
@@ -183,11 +183,11 @@
                         <Button x:Name="MoreBtn" Style="{StaticResource IconBtn}" Content="&#xE712;" Click="More_Click" ToolTip="{local:T 'Altro'}"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0" IsHitTestVisible="False">
+                <StackPanel x:Name="TitleBox" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                     <TextBlock x:Name="TitleText" Text="Riffle" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460"/>
                     <TextBlock x:Name="CounterText" FontSize="12" Foreground="{StaticResource Fg2}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel x:Name="RightBar" Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="FullBtn" Style="{StaticResource IconBtn}" Content="&#xE740;" Click="Fullscreen_Click" ToolTip="{local:T 'Schermo intero (F11)'}" Margin="0,0,4,0"/>
                     <!-- Pulsanti finestra disegnati dall'app: alti quanto la barra e allineati alle altre icone -->
                     <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" VerticalAlignment="Stretch">
@@ -232,7 +232,10 @@
                         <TextBlock x:Name="DlgTitle" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock x:Name="DlgText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Fg}" LineHeight="20"/>
                         <TextBox x:Name="DlgInput" Margin="0,14,0,0" Style="{StaticResource Field}" Visibility="Collapsed"/>
-                        <Button x:Name="DlgLink" Style="{StaticResource LinkBtn}" Margin="-8,10,0,0" HorizontalAlignment="Left" Visibility="Collapsed" Click="DlgLink_Click"/>
+                        <StackPanel x:Name="DlgLinks" Orientation="Horizontal" Margin="-8,10,0,0" Visibility="Collapsed">
+                            <Button x:Name="DlgLink" Style="{StaticResource LinkBtn}" Click="DlgLink_Click"/>
+                            <Button x:Name="DlgDonate" Style="{StaticResource LinkBtn}" Margin="6,0,0,0" Click="DlgDonate_Click"/>
+                        </StackPanel>
                     </StackPanel>
                     <Border Background="{StaticResource DialogFooter}" CornerRadius="0,0,8,8" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="24,20">
                         <Grid>

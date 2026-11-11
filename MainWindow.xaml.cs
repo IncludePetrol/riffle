@@ -110,6 +110,10 @@ public partial class MainWindow : Window
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
             ApplyBackground();
         };
+        // il nome del file resta al centro della finestra ma non copre mai i pulsanti
+        Toolbar.SizeChanged += (_, _) => FitTitle();
+        LeftBar.SizeChanged += (_, _) => FitTitle();
+        RightBar.SizeChanged += (_, _) => FitTitle();
         StateChanged += (_, _) => { UpdateFrameMargin(); MaxBtn.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922"; };
         Activated += (_, _) => { TitleText.Opacity = AppIcon.Opacity = CaptionButtons.Opacity = 1; };
         Deactivated += (_, _) => { TitleText.Opacity = AppIcon.Opacity = CaptionButtons.Opacity = 0.55; };
@@ -497,6 +501,35 @@ public partial class MainWindow : Window
         _animTimer.Interval = TimeSpan.FromMilliseconds(a.DelaysMs[_animFrame]);
     }
 
+    /// <summary>
+    /// Titolo al centro della finestra. Se lo spazio non basta, si sposta nello spazio libero tra comandi
+    /// e pulsanti della finestra e si accorcia con i puntini: non copre mai i pulsanti e non sparisce.
+    /// </summary>
+    private void FitTitle()
+    {
+        double total = Toolbar.ActualWidth - Toolbar.Padding.Left;
+        double left = LeftBar.ActualWidth + 16, right = RightBar.ActualWidth + 16;
+        CounterText.Visibility = CounterText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        TitleBox.Margin = new Thickness(0); // misura senza il margine della posizione di ripiego
+        TitleText.MaxWidth = 560;
+        TitleBox.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double want = TitleBox.DesiredSize.Width;
+        double centeredRoom = total - 2 * Math.Max(left, right);
+        if (want <= centeredRoom)
+        {
+            TitleBox.HorizontalAlignment = HorizontalAlignment.Center;
+            TitleBox.Margin = new Thickness(0);
+            return;
+        }
+        // spazio libero tra le due barre
+        double free = total - left - right;
+        double counter = CounterText.Visibility == Visibility.Visible ? CounterText.DesiredSize.Width + CounterText.Margin.Left : 0;
+        if (free - counter < 90) { CounterText.Visibility = Visibility.Collapsed; counter = 0; }
+        TitleText.MaxWidth = Math.Max(0, free - counter);
+        TitleBox.HorizontalAlignment = HorizontalAlignment.Left;
+        TitleBox.Margin = new Thickness(left, 0, 0, 0);
+    }
+
     private void UpdateTitle()
     {
         var it = Cur;
@@ -504,6 +537,7 @@ public partial class MainWindow : Window
         TitleText.Text = it.Name;
         CounterText.Text = _items.Count > 1 ? Loc.F("{0} di {1}", _index + 1, _items.Count) : "";
         Title = it.Name + " — Riffle";
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, FitTitle);
     }
 
     private void UpdateCommands()
@@ -1598,6 +1632,7 @@ public partial class MainWindow : Window
         m.Items.Add(opt);
         Add(m, Loc.T("Scorciatoie da tastiera"), ShowShortcuts, "?");
         Add(m, Loc.T("Informazioni su Riffle"), ShowAbout);
+        Add(m, "\u2665  " + Loc.T("Supporta Riffle"), () => OpenUrl(DonateUrl));
 
         if (anchor != null) OpenMenu(m, anchor);
         else { m.Placement = PlacementMode.MousePoint; m.IsOpen = true; }
@@ -1626,6 +1661,7 @@ public partial class MainWindow : Window
 
     public const string Author = "Andrea Parolini";
     public const string RepoUrl = "https://github.com/IncludePetrol/riffle";
+    public const string DonateUrl = "https://paypal.me/AndreaParo05";
 
     private async void ShowAbout()
     {
@@ -1637,13 +1673,16 @@ public partial class MainWindow : Window
             Loc.T("Componenti di terze parti") + ": libVLC (LGPL-2.1), Magick.NET / ImageMagick (Apache-2.0), .NET (MIT)",
             "OK", showCancel: false);
         DlgLink.Content = RepoUrl.Replace("https://", "");
-        DlgLink.Visibility = Visibility.Visible;
+        DlgDonate.Content = "\u2665  " + Loc.T("Supporta Riffle");
+        DlgLinks.Visibility = Visibility.Visible;
         await t;
     }
 
-    private void DlgLink_Click(object sender, RoutedEventArgs e)
+    private void DlgLink_Click(object sender, RoutedEventArgs e) => OpenUrl(RepoUrl);
+    private void DlgDonate_Click(object sender, RoutedEventArgs e) => OpenUrl(DonateUrl);
+    private static void OpenUrl(string url)
     {
-        try { Process.Start(new ProcessStartInfo(RepoUrl) { UseShellExecute = true }); } catch { }
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
     }
 
     /// <summary>Cambia lingua e riavvia l'app sullo stesso file.</summary>
@@ -2137,7 +2176,7 @@ public partial class MainWindow : Window
         DlgTitle.Text = title; DlgText.Text = text; DlgOk.Content = ok;
         DlgText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
         DlgInput.Visibility = Visibility.Collapsed;
-        DlgLink.Visibility = Visibility.Collapsed;
+        DlgLinks.Visibility = Visibility.Collapsed;
         DlgCancel.Visibility = showCancel ? Visibility.Visible : Visibility.Collapsed;
         Grid.SetColumnSpan(DlgOk, showCancel ? 1 : 3);
         DialogLayer.Visibility = Visibility.Visible;
