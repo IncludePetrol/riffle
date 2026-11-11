@@ -55,12 +55,14 @@ public sealed class VideoSession : IDisposable
     public event Action? EndReached;
     public event Action? Error;
 
-    public VideoSession(string path, Dispatcher ui, bool loop, int volume, bool mute, float rate)
+    public VideoSession(string path, Dispatcher ui, bool loop, int volume, bool mute, float rate, long startMs = 0)
     {
         Path = path;
         _ui = ui;
         var vlc = Vlc;
         _media = new Media(vlc, new Uri(path));
+        // ripartenza da un punto preciso (es. dopo aver salvato la rotazione)
+        if (startMs > 0) _media.AddOption(":start-time=" + (startMs / 1000.0).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
         if (loop) _media.AddOption(":input-repeat=65535");
         _mp = new MediaPlayer(_media) { EnableHardwareDecoding = true };
         _formatCb = OnFormat; _cleanupCb = OnCleanup; _lockCb = OnLock; _displayCb = OnDisplay;
@@ -192,6 +194,11 @@ public sealed class VideoSession : IDisposable
                 double sar = v.SarNum > 0 && v.SarDen > 0 ? (double)v.SarNum / v.SarDen : 1;
                 if (sar < 0.25 || sar > 4) sar = 1;
                 int w = (int)v.Width, h = (int)v.Height;
+                // video girati col telefono: VLC consegna i fotogrammi già ruotati, quindi scambiamo larghezza e altezza
+                bool rotated = v.Orientation is VideoOrientation.LeftTop or VideoOrientation.LeftBottom
+                                             or VideoOrientation.RightTop or VideoOrientation.RightBottom;
+                if (!rotated && FrameWidth > 0 && w > h && FrameHeight > FrameWidth) rotated = true; // ripiego se l'orientamento non è dichiarato
+                if (rotated) { (w, h) = (h, w); sar = 1 / sar; }
                 // se VLC ha ridotto il formato (>4K) scala le dimensioni visibili di conseguenza
                 if (w > FrameWidth && FrameWidth > 0) { h = (int)Math.Round(h * (double)FrameWidth / w); w = FrameWidth; }
                 return (w, h, sar);

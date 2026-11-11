@@ -62,6 +62,12 @@ public partial class MainWindow : Window
     private DateTime _lastSeek;
     private long _clipIn = -1, _clipOut = -1;
     private float _rate = 1f;
+    private int _vidRot;                      // rotazione (oraria) applicata alla visualizzazione del video corrente
+    private string? _vidRotPath;
+    private readonly DispatcherTimer _vidRotSave = new() { Interval = TimeSpan.FromMilliseconds(1300) };
+    private long _resumeAtMs = -1;
+    private bool _resumePaused;
+    private static readonly HashSet<string> LosslessRotateExt = new(StringComparer.OrdinalIgnoreCase) { ".mp4", ".m4v", ".mov", ".3gp", ".3g2" };
     private static string? _ffmpeg;
 
     // interfaccia
@@ -111,6 +117,7 @@ public partial class MainWindow : Window
         StageHost.SizeChanged += (_, _) => { if (_fit) FitView(); else ClampPan(); ApplyXf(); if (_edit != null) UpdateCropVisual(); };
 
         _animTimer.Tick += AnimTick;
+        _vidRotSave.Tick += async (_, _) => { _vidRotSave.Stop(); await SaveVideoRotationNow(); };
         _infoDelay.Tick += (_, _) => { _infoDelay.Stop(); if (InfoPanel.Visibility == Visibility.Visible) UpdateInfo(); };
         _videoStart.Tick += (_, _) => { _videoStart.Stop(); StartVideoIfCurrent(); };
         _uiTimer.Tick += UiTick;
@@ -191,6 +198,7 @@ public partial class MainWindow : Window
                 foreach (var fi in new DirectoryInfo(folder).EnumerateFiles())
                 {
                     if ((fi.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) continue;
+                    if (fi.Name.Contains(".riffle-tmp")) continue;
                     var k = MediaTypes.KindOf(fi.Name);
                     if (k == null) continue;
                     list.Add(new MediaItem(fi.FullName, k.Value) { Modified = fi.LastWriteTime, Size = fi.Length });
@@ -251,7 +259,7 @@ public partial class MainWindow : Window
             _watcher = new FileSystemWatcher(folder) { IncludeSubdirectories = false, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
             FileSystemEventHandler h = (_, e) =>
             {
-                if (e.Name != null && (e.Name.EndsWith(".riffle-tmp") || MediaTypes.KindOf(e.Name) == null)) return;
+                if (e.Name != null && (e.Name.Contains(".riffle-tmp") || MediaTypes.KindOf(e.Name) == null)) return;
                 Dispatcher.BeginInvoke(() => { _watchDebounce.Stop(); _watchDebounce.Start(); });
             };
             _watcher.Created += h; _watcher.Deleted += h; _watcher.Renamed += (s, e) => h(s, e);
@@ -309,10 +317,12 @@ public partial class MainWindow : Window
         bool rapid = (now - _lastNav).TotalMilliseconds < 220;
         _lastNav = now;
 
+        FlushPendingVideoRotation();
         StopMedia();
         _index = idx;
         var it = Cur!;
         _viewOrient = Orient.None;
+        _vidRot = 0; _vidRotPath = null; _resumeAtMs = -1;
         _fit = true;
         _clipIn = _clipOut = -1;
         UpdateClipMarks();
@@ -501,7 +511,8 @@ public partial class MainWindow : Window
         var it = Cur;
         bool img = it != null && !it.IsVideo;
         bool decoded = img && _shown != null && !_placeholder;
-        RotLBtn.IsEnabled = RotRBtn.IsEnabled = decoded && _edit == null;
+        bool videoReady = it?.IsVideo == true && _video?.Bitmap != null;
+        RotLBtn.IsEnabled = RotRBtn.IsEnabled = (decoded || videoReady) && _edit == null;
         EditBtn.IsEnabled = decoded && _shown!.Animation == null && _edit == null;
         ZoomInBtn.IsEnabled = ZoomOutBtn.IsEnabled = ZoomLabel.IsEnabled = (decoded || (it?.IsVideo == true && _video?.Bitmap != null)) && _edit == null;
         DeleteBtn.IsEnabled = it != null && _edit == null;
@@ -517,12 +528,16 @@ public partial class MainWindow : Window
     //  ZOOM E PAN
     // =====================================================================
 
+    private bool RotSwap => Orient.Norm(_vidRot) is 90 or 270;
+    private double EffW => RotSwap ? _elemH : _elemW;
+    private double EffH => RotSwap ? _elemW : _elemH;
+
     private double FitScaleValue(bool allowUpscale)
     {
         double w = StageHost.ActualWidth, h = StageHost.ActualHeight;
         if (_edit != null) { w -= 80; h -= 80; }
         if (w <= 0 || h <= 0 || _elemW <= 0) return 1;
-        double s = Math.Min(w / _elemW, h / _elemH);
+        double s = Math.Min(w / EffW, h / EffH);
         return allowUpscale ? s : Math.Min(1, s);
     }
 
@@ -530,21 +545,31 @@ public partial class MainWindow : Window
     {
         bool up = _placeholder || _edit != null || Cur?.IsVideo == true;
         _scale = FitScaleValue(up);
-        _tx = (StageHost.ActualWidth - _elemW * _scale) / 2;
-        _ty = (StageHost.ActualHeight - _elemH * _scale) / 2;
+        _tx = (StageHost.ActualWidth - EffW * _scale) / 2;
+        _ty = (StageHost.ActualHeight - EffH * _scale) / 2;
     }
 
     private void ClampPan()
     {
         double vw = StageHost.ActualWidth, vh = StageHost.ActualHeight;
-        double iw = _elemW * _scale, ih = _elemH * _scale;
+        double iw = EffW * _scale, ih = EffH * _scale;
         _tx = iw <= vw ? (vw - iw) / 2 : Math.Clamp(_tx, vw - iw, 0);
         _ty = ih <= vh ? (vh - ih) / 2 : Math.Clamp(_ty, vh - ih, 0);
     }
 
     private void ApplyXf()
     {
-        _xf.Matrix = new Matrix(_scale, 0, 0, _scale, _tx, _ty);
+        var m = Matrix.Identity;
+        if (_vidRot != 0)
+        {
+            // ruota attorno al centro dell'area visibile, poi la riporta nell'origine
+            m.Translate(-_elemW / 2, -_elemH / 2);
+            m.Rotate(_vidRot);
+            m.Translate(EffW / 2, EffH / 2);
+        }
+        m.Scale(_scale, _scale);
+        m.Translate(_tx, _ty);
+        _xf.Matrix = m;
         var dpi = VisualTreeHelper.GetDpi(this);
         double pct = _scale * 100;
         // qualità: interpolazione fine in riduzione, pixel netti oltre il 300%
@@ -748,14 +773,25 @@ public partial class MainWindow : Window
         HideCenter();
         try
         {
-            var v = new VideoSession(it.Path, Dispatcher, S.LoopVideo && !_slideshow, (int)VolBar.Value, S.Mute, _rate);
+            long startAt = _resumeAtMs > 0 ? _resumeAtMs : 0;
+            TraceLog($"start video at {startAt}");
+            var v = new VideoSession(it.Path, Dispatcher, S.LoopVideo && !_slideshow, (int)VolBar.Value, S.Mute, _rate, startAt);
             _video = v;
             v.FormatReady += bmp =>
             {
                 if (_video != v) return;
                 if (v.HasFirstFrame) ShowVideoFrame(v, bmp);
             };
-            v.FirstFrame += () => { if (_video == v && v.Bitmap != null) ShowVideoFrame(v, v.Bitmap); };
+            v.FirstFrame += () =>
+            {
+                if (_video != v || v.Bitmap == null) return;
+                ShowVideoFrame(v, v.Bitmap);
+                if (_resumeAtMs >= 0)
+                {
+                    long at = _resumeAtMs; bool paused = _resumePaused; _resumeAtMs = -1;
+                    if (paused) PauseWhenReached(v, at);
+                }
+            };
             v.EndReached += () =>
             {
                 if (_video != v) return;
@@ -768,6 +804,29 @@ public partial class MainWindow : Window
         {
             ShowCenter("", Loc.F("Errore video: {0}", ex.Message));
         }
+    }
+
+    /// <summary>
+    /// Ripresa "in pausa": VLC raggiunge il punto chiesto decodificando dal fotogramma chiave precedente,
+    /// quindi aspettiamo di esserci arrivati (ad audio muto) prima di fermarci.
+    /// </summary>
+    private void PauseWhenReached(VideoSession v, long at)
+    {
+        v.SetMute(true);
+        var t = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(10) };
+        var started = DateTime.Now;
+        t.Tick += (_, _) =>
+        {
+            if (_video != v) { t.Stop(); return; }
+            if (v.TimeMs >= at - 40 || (DateTime.Now - started).TotalSeconds > 3)
+            {
+                t.Stop();
+                v.Pause();
+                v.SetMute(S.Mute);
+                TraceLog($"resumed paused at {v.TimeMs} (target {at})");
+            }
+        };
+        t.Start();
     }
 
     private void ShowVideoFrame(VideoSession v, BitmapSource bmp)
@@ -950,6 +1009,7 @@ public partial class MainWindow : Window
         if (v == null || it == null) return;
         var bmp = v.Snapshot();
         if (bmp == null) return;
+        if (_vidRot != 0) bmp = Orient.None.RotateCw(_vidRot).Apply(bmp);
         long t = v.TimeMs;
         var dest = Editing.UniqueName(it.Path, Loc.T("_fotogramma_") + $"{t / 60000:00}m{t / 1000 % 60:00}s", ".png");
         try { Editing.SavePng(bmp, dest); Toast(Loc.F("Fotogramma salvato: {0}", Path.GetFileName(dest)), 2500); }
@@ -1032,7 +1092,8 @@ public partial class MainWindow : Window
     private async Task RotateAndSave(int deg)
     {
         var it = Cur;
-        if (it == null || it.IsVideo || _shown == null || _placeholder || _edit != null) return;
+        if (it?.IsVideo == true) { RotateVideo(deg); return; }
+        if (it == null || _shown == null || _placeholder || _edit != null) return;
         var extra = Orient.None.RotateCw(deg);
         _viewOrient = _viewOrient.Then(extra);
         var baseImg = _full ?? _shown;
@@ -1076,6 +1137,127 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { Toast(Loc.F("Impossibile salvare la rotazione: {0}", ex.Message), 3500); }
         finally { _ = Task.Delay(1500).ContinueWith(_ => Dispatcher.BeginInvoke(() => _selfWrites.Remove(path))); }
+    }
+
+    // ---------- rotazione dei video ----------
+
+    private void RotateVideo(int deg)
+    {
+        var it = Cur;
+        if (it == null || _video?.Bitmap == null || _edit != null) return;
+        _vidRot = Orient.Norm(_vidRot + deg);
+        _vidRotPath = it.Path;
+        _fit = true; FitView(); ApplyXf();
+        UpdateStatus();
+        // la scrittura su file parte poco dopo l'ultimo clic, così più rotazioni di fila diventano un solo salvataggio
+        _vidRotSave.Stop(); _vidRotSave.Start();
+    }
+
+    private bool CanSaveVideoRotation(string path) => _ffmpeg != null && LosslessRotateExt.Contains(Path.GetExtension(path));
+
+    /// <summary>Salva la rotazione del video corrente: ferma il video, riscrive i metadati, riprende dallo stesso punto.</summary>
+    private async Task SaveVideoRotationNow()
+    {
+        var it = Cur;
+        if (it == null || !it.IsVideo || _vidRot == 0 || _vidRotPath != it.Path) return;
+        if (!CanSaveVideoRotation(it.Path))
+        {
+            Toast(Loc.T(_ffmpeg == null ? "Rotazione solo in visualizzazione: per salvarla nel file serve ffmpeg" : "Rotazione solo in visualizzazione: si può salvare solo nei file MP4 e MOV"), 3500);
+            return;
+        }
+        int rot = _vidRot;
+        long pos = _video?.TimeMs ?? 0;
+        bool paused = _video?.IsPlaying != true;
+        TraceLog($"rotate-save pos={pos} paused={paused}");
+        ShowBusy(Loc.T("Salvataggio rotazione…"));
+        if (_video != null) { _video.DisposeAndWait(); _video = null; }
+        var path = it.Path;
+        _selfWrites.Add(path);
+        string? err = await Task.Run(() => WriteVideoRotation(path, rot));
+        _ = Task.Delay(2000).ContinueWith(_ => Dispatcher.BeginInvoke(() => _selfWrites.Remove(path)));
+        HideBusy();
+        if (Cur?.Path != path) return;
+        if (err == null) { _vidRot = 0; _vidRotPath = null; Thumbnails.Instance.Forget(path); Toast(Loc.T("Rotazione salvata"), 1200); }
+        else Toast(Loc.F("Impossibile salvare la rotazione: {0}", err), 4000);
+        _resumeAtMs = pos; _resumePaused = paused;
+        StartVideoIfCurrent();
+    }
+
+    /// <summary>Se si cambia file con una rotazione video non ancora salvata, la salva in background.</summary>
+    private void FlushPendingVideoRotation()
+    {
+        _vidRotSave.Stop();
+        var path = _vidRotPath; int rot = _vidRot;
+        _vidRotPath = null;
+        if (path == null || rot == 0 || !CanSaveVideoRotation(path)) return;
+        _selfWrites.Add(path);
+        Task.Run(async () =>
+        {
+            // VLC chiude il file in background: riprova per qualche istante
+            string? err = "busy";
+            for (int i = 0; i < 20 && err != null; i++) { await Task.Delay(150); err = WriteVideoRotation(path, rot); }
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _selfWrites.Remove(path);
+                Thumbnails.Instance.Forget(path);
+                Toast(err == null ? Loc.T("Rotazione salvata") : Loc.F("Impossibile salvare la rotazione: {0}", err), err == null ? 1200 : 4000);
+            });
+        });
+    }
+
+    /// <summary>
+    /// Ruota un video senza ricodificarlo: cambia solo i metadati di orientamento (come fanno i telefoni).
+    /// Restituisce null se riuscito, altrimenti il messaggio d'errore.
+    /// </summary>
+    private static string? WriteVideoRotation(string path, int rotCw)
+    {
+        try
+        {
+            int existingCcw = ProbeRotationCcw(path);
+            int newCcw = ((existingCcw - rotCw) % 360 + 360) % 360;
+            if (newCcw > 180) newCcw -= 360;
+            var dir = Path.GetDirectoryName(path)!;
+            var tmp = Path.Combine(dir, "." + Path.GetFileNameWithoutExtension(path) + ".riffle-tmp" + Path.GetExtension(path));
+            var created = File.GetCreationTimeUtc(path);
+            var modified = File.GetLastWriteTimeUtc(path);
+            var psi = new ProcessStartInfo(_ffmpeg!,
+                $"-hide_banner -loglevel error -y -display_rotation {newCcw} -i \"{path}\" -map 0:v -map 0:a? -map 0:s? -c copy -map_metadata 0 \"{tmp}\"")
+            { CreateNoWindow = true, UseShellExecute = false, RedirectStandardError = true };
+            using (var p = Process.Start(psi)!)
+            {
+                string e = p.StandardError.ReadToEnd();
+                p.WaitForExit();
+                if (p.ExitCode != 0 || !File.Exists(tmp) || new FileInfo(tmp).Length == 0)
+                {
+                    try { File.Delete(tmp); } catch { }
+                    return string.IsNullOrWhiteSpace(e) ? "ffmpeg " + p.ExitCode : e.Trim().Split('\n')[0];
+                }
+            }
+            try { File.Replace(tmp, path, null, true); }
+            catch (IOException) { try { File.Delete(tmp); } catch { } return "busy"; }
+            try { File.SetCreationTimeUtc(path, created); File.SetLastWriteTimeUtc(path, modified); } catch { }
+            return null;
+        }
+        catch (Exception ex) { return ex.Message; }
+    }
+
+    /// <summary>Rotazione già presente nel file (gradi antiorari, convenzione di ffmpeg).</summary>
+    private static int ProbeRotationCcw(string path)
+    {
+        try
+        {
+            var probe = Path.Combine(Path.GetDirectoryName(_ffmpeg!)!, "ffprobe.exe");
+            if (!File.Exists(probe)) return 0;
+            var psi = new ProcessStartInfo(probe, $"-v error -select_streams v:0 -show_entries stream_side_data=rotation -of default=nw=1:nk=1 \"{path}\"")
+            { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true };
+            using var p = Process.Start(psi)!;
+            var o = p.StandardOutput.ReadToEnd(); p.WaitForExit();
+            foreach (var line in o.Split('\n'))
+                if (double.TryParse(line.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    return (int)Math.Round(d);
+        }
+        catch { }
+        return 0;
     }
 
     private static DecodedImage Rotated(DecodedImage d, Orient o) => new()
@@ -1588,7 +1770,7 @@ public partial class MainWindow : Window
         StFormat.Text = Path.GetExtension(it.Name).TrimStart('.').ToUpperInvariant();
         int w = 0, h = 0;
         if (!it.IsVideo && _shown != null && _shownPath == it.Path) { w = _shown.FullWidth; h = _shown.FullHeight; if (_viewOrient.SwapsAxes) (w, h) = (h, w); }
-        else if (it.IsVideo && _video?.Bitmap != null) { var (vw, vh, sar) = _video.VisibleSize(); w = (int)Math.Round(vw * sar); h = vh; }
+        else if (it.IsVideo && _video?.Bitmap != null) { var (vw, vh, sar) = _video.VisibleSize(); w = (int)Math.Round(vw * sar); h = vh; if (RotSwap) (w, h) = (h, w); }
         StRes.Text = w > 0 ? $"{w} × {h}" : "";
         StResBox.Visibility = w > 0 ? Visibility.Visible : Visibility.Collapsed;
         long len = it.IsVideo ? _video?.LengthMs ?? 0 : 0;

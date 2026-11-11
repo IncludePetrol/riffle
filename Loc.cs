@@ -125,6 +125,9 @@ public static class Loc
         ["Impossibile impostare lo sfondo"] = "Couldn't set the background",
         ["Stampa…"] = "Print…",
         ["Rotazione salvata"] = "Rotation saved",
+        ["Salvataggio rotazione…"] = "Saving rotation…",
+        ["Rotazione solo in visualizzazione: per salvarla nel file serve ffmpeg"] = "Rotation is view-only: saving it to the file requires ffmpeg",
+        ["Rotazione solo in visualizzazione: si può salvare solo nei file MP4 e MOV"] = "Rotation is view-only: it can only be saved to MP4 and MOV files",
         ["Impossibile salvare la rotazione: {0}"] = "Couldn't save the rotation: {0}",
         ["Rotazione solo in visualizzazione: questo formato non si può sovrascrivere (usa Modifica → Salva una copia)"] =
             "Rotation is view-only: this format can't be overwritten (use Edit → Save a copy)",

@@ -97,6 +97,8 @@ Each of those photos reached the screen in **under 0.1 ms** after the key press.
 
 **Video**
 - Seek with live scrubbing, change speed from 0.25× to 3×, loop, step one frame, and pick audio and subtitle tracks.
+- **Rotate videos** with `Ctrl+R` / `Ctrl+L`. MP4 and MOV files are fixed **without re-encoding**: only the orientation metadata changes, as phones do, so there is no quality loss and it takes a second. Other formats rotate on screen only. Saving needs `ffmpeg` on your PATH.
+- Portrait videos shot on phones show upright and uncropped.
 - Save the current frame as PNG.
 - Trim a clip with `[` and `]`, then export it with or without re-encoding. This requires `ffmpeg` on your PATH.
 
@@ -138,7 +140,7 @@ Each of those photos reached the screen in **under 0.1 ms** after the key press.
 | `0` / `1` | Fit / 100% | | `F2` | Rename |
 | `F` `F11` `Enter` | Full screen | | `Ctrl+C` | Copy file |
 | `F5` | Slideshow | | `Ctrl+E` | Show in Explorer |
-| `Ctrl+R` / `Ctrl+L` | Rotate (lossless JPEG) | | `Esc` | Exit full screen / edit |
+| `Ctrl+R` / `Ctrl+L` | Rotate photos and videos (lossless) | | `Esc` | Exit full screen / edit |
 
 **Video:** `Space` play/pause · `Shift+←/→` ±5 s · `Ctrl+←/→` ±30 s · `↑` `↓` volume · `M` mute · `L` loop · `.` next frame · `[` `]` clip start/end
 

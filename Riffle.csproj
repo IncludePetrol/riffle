@@ -9,7 +9,7 @@
     <AssemblyName>Riffle</AssemblyName>
     <RootNamespace>Riffle</RootNamespace>
     <Product>Riffle</Product>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Company>Andrea Parolini</Company>
     <Authors>Andrea Parolini</Authors>
     <Description>Instant photo and video viewer for Windows</Description>

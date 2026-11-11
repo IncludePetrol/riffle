@@ -40,8 +40,14 @@ public static class FileAssoc
             ra.SetValue("Riffle", @"Software\Riffle\Capabilities");
         foreach (var e in MediaTypes.ImageExt.Concat(MediaTypes.VideoExt))
         {
-            using var ow = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{e}\OpenWithProgids");
-            ow.SetValue(ProgId, Array.Empty<byte>(), RegistryValueKind.None);
+            // alcune chiavi possono essere bloccate da altri programmi: le saltiamo senza interrompere la registrazione
+            try
+            {
+                using var ow = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{e}\OpenWithProgids");
+                ow.SetValue(ProgId, Array.Empty<byte>(), RegistryValueKind.None);
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (System.Security.SecurityException) { }
         }
         SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED
     }
