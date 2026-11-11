@@ -1,0 +1,258 @@
+<Window x:Class="Riffle.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Riffle"
+        Title="Riffle" Width="1280" Height="800" MinWidth="560" MinHeight="380"
+        Background="Transparent" Foreground="{StaticResource Fg}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
+        UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True"
+        TextOptions.TextFormattingMode="Display">
+    <WindowChrome.WindowChrome>
+        <WindowChrome x:Name="Chrome" CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6"
+                      CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ AREA DI VISUALIZZAZIONE ============ -->
+        <Grid x:Name="StageHost" Grid.Row="1" Grid.Column="0" ClipToBounds="True" Background="{StaticResource StageBg}">
+            <Canvas x:Name="Stage" IsHitTestVisible="False">
+                <Image x:Name="Img" RenderOptions.BitmapScalingMode="HighQuality" Stretch="Fill"/>
+            </Canvas>
+
+            <!-- Ritaglio -->
+            <Canvas x:Name="CropLayer" Visibility="Collapsed" Background="Transparent">
+                <Path x:Name="CropMask" Fill="#A6000000" IsHitTestVisible="False">
+                    <Path.Data>
+                        <GeometryGroup FillRule="EvenOdd">
+                            <RectangleGeometry x:Name="CropOuter"/>
+                            <RectangleGeometry x:Name="CropInner"/>
+                        </GeometryGroup>
+                    </Path.Data>
+                </Path>
+                <Rectangle x:Name="CropFrame" Stroke="White" StrokeThickness="1.5" IsHitTestVisible="False"/>
+                <Path x:Name="CropThirds" Stroke="#70FFFFFF" StrokeThickness="1" IsHitTestVisible="False"/>
+                <Path x:Name="CropHandles" Fill="White" IsHitTestVisible="False"/>
+            </Canvas>
+
+            <!-- Messaggio centrale (caricamento/errore) -->
+            <StackPanel x:Name="CenterMsg" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False">
+                <TextBlock x:Name="CenterIcon" FontFamily="{StaticResource Icons}" FontSize="36" HorizontalAlignment="Center" Foreground="{StaticResource Fg2}"/>
+                <TextBlock x:Name="CenterText" FontSize="14" Margin="0,12,0,0" HorizontalAlignment="Center" Foreground="{StaticResource Fg2}" TextAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Schermata iniziale -->
+            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                <Image Source="/assets/riffle-512.png" Width="104" Height="104" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Text="Riffle" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="30" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,2"/>
+                <TextBlock Text="{local:T 'Foto e video, istantanei.'}" Foreground="{StaticResource Fg2}" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,24"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Style="{StaticResource AccentBtn}" Content="{local:T 'Apri file…'}" Click="OpenFile_Click" Margin="4" MinWidth="130"/>
+                    <Button Style="{StaticResource TextBtn}" Content="{local:T 'Apri cartella…'}" Click="OpenFolder_Click" Margin="4" MinWidth="130"/>
+                </StackPanel>
+                <Button x:Name="LastFolderBtn" Style="{StaticResource LinkBtn}" Margin="0,12,0,0" HorizontalAlignment="Center" Click="LastFolder_Click" Visibility="Collapsed"/>
+                <TextBlock Text="{local:T 'oppure trascina qui foto, video o cartelle'}" Foreground="{StaticResource Fg3}" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+            </StackPanel>
+
+            <!-- Frecce di navigazione -->
+            <Button x:Name="PrevBtn" Style="{StaticResource NavBtn}" Content="&#xE76B;" HorizontalAlignment="Left" Margin="12,0,0,0" Opacity="0" Click="Prev_Click" ToolTip="{local:T 'Precedente (←)'}"/>
+            <Button x:Name="NextBtn" Style="{StaticResource NavBtn}" Content="&#xE76C;" HorizontalAlignment="Right" Margin="0,0,12,0" Opacity="0" Click="Next_Click" ToolTip="{local:T 'Successiva (→)'}"/>
+
+            <!-- Notifiche -->
+            <Border x:Name="ToastBox" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,16,0,0" Background="{StaticResource Flyout}" CornerRadius="8" Padding="16,9"
+                    Opacity="0" IsHitTestVisible="False" BorderBrush="{StaticResource Stroke}" BorderThickness="1">
+                <TextBlock x:Name="ToastText" FontSize="13"/>
+            </Border>
+
+            <!-- Controlli video -->
+            <Border x:Name="VideoBar" VerticalAlignment="Bottom" Margin="20,0,20,16" Padding="10,6,10,4" CornerRadius="10" Background="{StaticResource Flyout}"
+                    BorderBrush="{StaticResource Stroke}" BorderThickness="1" Visibility="Collapsed" MaxWidth="1000">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="6,2,6,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="TimeText" Text="0:00" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Fg2}" MinWidth="44"/>
+                        <Grid Grid.Column="1" Margin="8,0">
+                            <Canvas x:Name="ClipMarks" IsHitTestVisible="False" VerticalAlignment="Center" Height="4"/>
+                            <Slider x:Name="SeekBar" Minimum="0" Maximum="1000" ValueChanged="SeekBar_ValueChanged"
+                                    PreviewMouseLeftButtonDown="SeekBar_Down" PreviewMouseLeftButtonUp="SeekBar_Up"/>
+                        </Grid>
+                        <TextBlock x:Name="DurText" Grid.Column="2" Text="0:00" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Fg2}" MinWidth="44" TextAlignment="Right"/>
+                    </Grid>
+                    <DockPanel Grid.Row="1" LastChildFill="False">
+                        <Button x:Name="PlayBtn" Style="{StaticResource IconBtn}" Content="&#xE768;" Click="PlayPause_Click" ToolTip="{local:T 'Riproduci/Pausa (Spazio)'}" FontSize="18"/>
+                        <Button Style="{StaticResource IconBtn}" Content="&#xE893;" Click="FrameStep_Click" ToolTip="{local:T 'Fotogramma successivo (.)'}"/>
+                        <Button x:Name="MuteBtn" Style="{StaticResource IconBtn}" Content="&#xE767;" Click="Mute_Click" ToolTip="{local:T 'Audio (M)'}"/>
+                        <Slider x:Name="VolBar" Width="90" Minimum="0" Maximum="100" Value="80" ValueChanged="VolBar_ValueChanged"/>
+                        <TextBlock x:Name="ClipText" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12" Foreground="{DynamicResource Accent}"/>
+
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE740;" Click="Fullscreen_Click" ToolTip="{local:T 'Schermo intero (F11)'}"/>
+                        <Button x:Name="LoopBtn" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE8EE;" Click="Loop_Click" ToolTip="{local:T 'Ripeti (L)'}"/>
+                        <Button x:Name="TracksBtn" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE7F0;" Click="Tracks_Click" ToolTip="{local:T 'Audio e sottotitoli'}"/>
+                        <Button x:Name="SpeedBtn" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Content="1×" Click="Speed_Click" ToolTip="{local:T 'Velocità'}" Width="46"/>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE722;" Click="Snapshot_Click" ToolTip="{local:T 'Salva fotogramma come PNG'}"/>
+                        <Button x:Name="ClipBtn" DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE8C6;" Click="Clip_Click" ToolTip="{local:T 'Taglia clip: imposta inizio [ e fine ], poi esporta'}"/>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ PANNELLO INFO ============ -->
+        <Border x:Name="InfoPanel" Grid.Row="1" Grid.Column="1" Width="304" Margin="8,0,8,8" Style="{StaticResource Card}" Visibility="Collapsed">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="18,12,8,4">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="&#xE711;" FontSize="11" Width="32" Height="30" Click="Info_Click"/>
+                    <TextBlock Text="{local:T 'Informazioni'}" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </DockPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel x:Name="InfoList" Margin="18,0,18,16"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- ============ PANNELLO MODIFICA ============ -->
+        <Border x:Name="EditPanel" Grid.Row="1" Grid.Column="1" Width="304" Margin="8,0,8,8" Style="{StaticResource Card}" Visibility="Collapsed">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{local:T 'Modifica'}" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="17" FontWeight="SemiBold" Margin="18,16,18,6"/>
+                <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="18,14,18,16">
+                    <StackPanel>
+                        <Button x:Name="SaveCopyBtn" Style="{StaticResource AccentBtn}" Content="{local:T 'Salva una copia'}" Click="SaveCopy_Click" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Button x:Name="SaveOverBtn" Style="{StaticResource TextBtn}" Content="{local:T 'Sovrascrivi'}" Click="SaveOver_Click"/>
+                            <Button Grid.Column="2" Style="{StaticResource TextBtn}" Content="{local:T 'Annulla'}" Click="EditCancel_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel Margin="18,0,18,10">
+                        <TextBlock Text="{local:T 'RITAGLIA E RUOTA'}" Style="{StaticResource Caption}" Margin="0,8,0,6"/>
+                        <StackPanel Orientation="Horizontal" Margin="-4,0,0,0">
+                            <Button Style="{StaticResource IconBtn}" Content="&#xE7AD;" Click="EditRotL_Click" ToolTip="{local:T 'Ruota a sinistra'}" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><ScaleTransform ScaleX="-1"/></Button.RenderTransform></Button>
+                            <Button Style="{StaticResource IconBtn}" Content="&#xE7AD;" Click="EditRotR_Click" ToolTip="{local:T 'Ruota a destra'}"/>
+                            <Button Style="{StaticResource IconBtn}" Content="&#xE8AB;" Click="EditFlipH_Click" ToolTip="{local:T 'Rifletti orizzontalmente'}"/>
+                            <Button Style="{StaticResource IconBtn}" Content="&#xE8AB;" Click="EditFlipV_Click" ToolTip="{local:T 'Rifletti verticalmente'}" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><RotateTransform Angle="90"/></Button.RenderTransform></Button>
+                        </StackPanel>
+                        <WrapPanel x:Name="AspectPanel" Margin="0,8,0,4"/>
+
+                        <TextBlock Text="{local:T 'REGOLAZIONI'}" Style="{StaticResource Caption}" Margin="0,16,0,0"/>
+                        <StackPanel x:Name="AdjustList"/>
+                        <CheckBox x:Name="BwCheck" Content="{local:T 'Bianco e nero'}" Margin="0,14,0,0" Checked="Bw_Changed" Unchecked="Bw_Changed"/>
+                        <Button Style="{StaticResource TextBtn}" Content="{local:T 'Ripristina tutto'}" HorizontalAlignment="Left" Margin="0,14,0,0" Click="EditReset_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- ============ BARRA DEL TITOLO / STRUMENTI ============ -->
+        <!-- comandi a sinistra, nome del file al centro, a destra solo schermo intero e pulsanti della finestra -->
+        <Border x:Name="Toolbar" Grid.Row="0" Grid.ColumnSpan="2" Background="Transparent" Padding="10,0,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="AppIcon" Source="/assets/riffle-32.png" Width="16" Height="16" Margin="4,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel x:Name="Commands" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="EditBtn" Style="{StaticResource IconBtn}" Content="&#xE70F;" Click="Edit_Click" ToolTip="{local:T 'Modifica: ritaglia, ruota, regola (E)'}"/>
+                        <Button x:Name="RotLBtn" Style="{StaticResource IconBtn}" Content="&#xE7AD;" Click="RotL_Click" ToolTip="{local:T 'Ruota a sinistra (Ctrl+L)'}" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><ScaleTransform ScaleX="-1"/></Button.RenderTransform></Button>
+                        <Button x:Name="RotRBtn" Style="{StaticResource IconBtn}" Content="&#xE7AD;" Click="RotR_Click" ToolTip="{local:T 'Ruota a destra (Ctrl+R)'}"/>
+                        <Button x:Name="DeleteBtn" Style="{StaticResource IconBtn}" Content="&#xE74D;" Click="Delete_Click" ToolTip="{local:T 'Elimina (Canc)'}"/>
+                        <Border Width="1" Background="{StaticResource Stroke}" Margin="6,10"/>
+                        <Button x:Name="ZoomOutBtn" Style="{StaticResource IconBtn}" Content="&#xE71F;" Click="ZoomOut_Click" ToolTip="{local:T 'Riduci (-)'}"/>
+                        <Button x:Name="ZoomLabel" Style="{StaticResource IconBtn}" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12" Width="54" Content="100%" Click="ZoomToggle_Click" ToolTip="{local:T 'Adatta / 100% (0, 1)'}"/>
+                        <Button x:Name="ZoomInBtn" Style="{StaticResource IconBtn}" Content="&#xE8A3;" Click="ZoomIn_Click" ToolTip="{local:T 'Ingrandisci (+)'}"/>
+                        <Border Width="1" Background="{StaticResource Stroke}" Margin="6,10"/>
+                        <Button x:Name="InfoBtn" Style="{StaticResource IconBtn}" Content="&#xE946;" Click="Info_Click" ToolTip="{local:T 'Informazioni (I)'}"/>
+                        <Button x:Name="SlideBtn" Style="{StaticResource IconBtn}" Content="&#xE786;" Click="Slideshow_Click" ToolTip="{local:T 'Presentazione (F5)'}"/>
+                        <Button x:Name="MoreBtn" Style="{StaticResource IconBtn}" Content="&#xE712;" Click="More_Click" ToolTip="{local:T 'Altro'}"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0" IsHitTestVisible="False">
+                    <TextBlock x:Name="TitleText" Text="Riffle" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460"/>
+                    <TextBlock x:Name="CounterText" FontSize="12" Foreground="{StaticResource Fg2}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button x:Name="FullBtn" Style="{StaticResource IconBtn}" Content="&#xE740;" Click="Fullscreen_Click" ToolTip="{local:T 'Schermo intero (F11)'}" Margin="0,0,4,0"/>
+                    <!-- Pulsanti finestra disegnati dall'app: alti quanto la barra e allineati alle altre icone -->
+                    <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" VerticalAlignment="Stretch">
+                        <Button x:Name="MinBtn" Style="{StaticResource CaptionBtn}" Content="&#xE921;" Click="Min_Click"/>
+                        <Button x:Name="MaxBtn" Style="{StaticResource CaptionBtn}" Content="&#xE922;" Click="Max_Click"/>
+                        <Button x:Name="CloseBtn" Style="{StaticResource CloseBtn}" Content="&#xE8BB;" Click="Close_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ============ BARRA DI STATO (formato, risoluzione, peso) ============ -->
+        <Border x:Name="StatusBar" Grid.Row="2" Grid.ColumnSpan="2" Background="Transparent" Height="34" Padding="16,0">
+            <StackPanel x:Name="StatusInfo" Orientation="Horizontal" VerticalAlignment="Center" TextBlock.FontSize="12" TextBlock.Foreground="{StaticResource Fg2}">
+                <TextBlock x:Name="StFormat" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <StackPanel x:Name="StResBox" Orientation="Horizontal" Margin="18,0,0,0">
+                    <TextBlock Text="&#xE740;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                    <TextBlock x:Name="StRes" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel x:Name="StDurBox" Orientation="Horizontal" Margin="18,0,0,0">
+                    <TextBlock Text="&#xE916;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                    <TextBlock x:Name="StDur" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel x:Name="StSizeBox" Orientation="Horizontal" Margin="18,0,0,0">
+                    <TextBlock Text="&#xE74E;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                    <TextBlock x:Name="StSize" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel x:Name="StDateBox" Orientation="Horizontal" Margin="18,0,0,0">
+                    <TextBlock Text="&#xE787;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                    <TextBlock x:Name="StDate" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ DIALOGO (stile ContentDialog) ============ -->
+        <Grid x:Name="DialogLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="#80000000" Visibility="Collapsed">
+            <Border Background="{StaticResource DialogBg}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="8" MinWidth="400" MaxWidth="560"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect><DropShadowEffect BlurRadius="32" ShadowDepth="8" Opacity="0.45" Direction="270"/></Border.Effect>
+                <StackPanel>
+                    <StackPanel Margin="24,22,24,22">
+                        <TextBlock x:Name="DlgTitle" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DlgText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Fg}" LineHeight="20"/>
+                        <TextBox x:Name="DlgInput" Margin="0,14,0,0" Style="{StaticResource Field}" Visibility="Collapsed"/>
+                        <Button x:Name="DlgLink" Style="{StaticResource LinkBtn}" Margin="-8,10,0,0" HorizontalAlignment="Left" Visibility="Collapsed" Click="DlgLink_Click"/>
+                    </StackPanel>
+                    <Border Background="{StaticResource DialogFooter}" CornerRadius="0,0,8,8" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="24,20">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Button x:Name="DlgOk" Style="{StaticResource AccentBtn}" Content="OK" Click="DlgOk_Click"/>
+                            <Button x:Name="DlgCancel" Grid.Column="2" Style="{StaticResource TextBtn}" Content="{local:T 'Annulla'}" Click="DlgCancel_Click"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ LAVORO IN CORSO ============ -->
+        <Grid x:Name="BusyLayer" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="#66000000" Visibility="Collapsed">
+            <Border Background="{StaticResource DialogBg}" CornerRadius="8" Padding="28,18" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource Stroke}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE895;" FontFamily="{StaticResource Icons}" FontSize="16" Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock x:Name="BusyText" FontSize="14" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
